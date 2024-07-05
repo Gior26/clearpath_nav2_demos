@@ -29,6 +29,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from clearpath_config.common.utils.yaml import read_yaml
 from clearpath_config.clearpath_config import ClearpathConfig
+from nav2_common.launch import RewrittenYaml
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -45,6 +46,7 @@ from launch.substitutions import (
 )
 
 from launch_ros.actions import PushRosNamespace
+import os
 
 
 ARGUMENTS = [
@@ -53,7 +55,16 @@ ARGUMENTS = [
                           description='Use sim time'),
     DeclareLaunchArgument('setup_path',
                           default_value='/etc/clearpath/',
-                          description='Clearpath setup path')
+                          description='Clearpath setup path'),
+    DeclareLaunchArgument('init_x',
+                          default_value='0.0',
+                          description='Robot initial x pose'),
+    DeclareLaunchArgument('init_y',
+                          default_value='0.0',
+                          description='Robot initial y pose'),
+    DeclareLaunchArgument('init_yaw',
+                          default_value='0.0',
+                          description='Robot initial yaw pose')
 ]
 
 
@@ -66,6 +77,9 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration('use_sim_time')
     setup_path = LaunchConfiguration('setup_path')
     map = LaunchConfiguration('map')
+    init_x = LaunchConfiguration('init_x')
+    init_y = LaunchConfiguration('init_y')
+    init_yaw = LaunchConfiguration('init_yaw')
 
     # Read robot YAML
     config = read_yaml(setup_path.perform(context) + 'robot.yaml')
@@ -75,11 +89,15 @@ def launch_setup(context, *args, **kwargs):
     namespace = clearpath_config.system.namespace
     platform_model = clearpath_config.platform.get_platform_model()
 
-    file_parameters = PathJoinSubstitution([
-        pkg_clearpath_nav2_demos,
-        'config',
-        platform_model,
-        'localization.yaml'])
+    rewritten_file = RewrittenYaml(
+            source_file=os.path.join(pkg_clearpath_nav2_demos, 'config',
+                platform_model, 'localization.yaml'),
+            param_rewrites={
+                'x': init_x,
+                'y': init_y,
+                'yaw': init_yaw,
+                },
+            convert_types=True)
 
     launch_localization = PathJoinSubstitution(
       [pkg_nav2_bringup, 'launch', 'localization_launch.py'])
@@ -93,7 +111,7 @@ def launch_setup(context, *args, **kwargs):
                 ('namespace', namespace),
                 ('map', map),
                 ('use_sim_time', use_sim_time),
-                ('params_file', file_parameters)
+                ('params_file', rewritten_file)
               ]
         ),
     ])
